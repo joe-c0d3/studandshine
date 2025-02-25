@@ -41,7 +41,7 @@ SECRET_KEY = 'django-insecure-jw5^td9m8ds-4!bs+u=wb6-7n#46!z73$kdnr16rq@(w0_k@bs
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["studandshine-api.onrender.com", "localhost", "127.0.0.1"]
 
 
 # Application definition
