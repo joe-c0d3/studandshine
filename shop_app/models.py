@@ -9,7 +9,14 @@ from django.db.models.signals import post_save
 class Product(models.Model):
     CATEGORY = (("Electronics", "ELECTRONICS"),
                 ("Groceries", "GROCERIES"),
-                ("Clothings", "CLOTHINGS")
+                ("Clothings", "CLOTHINGS"),
+                ("Wristwatch", "WRISTCHWATCH"),
+                ("Anklet", "ANKLET"),
+                ("Earrings", "EARRINGS"),
+                ("Necklace", "NECKLACE"),
+                ("Brooch", "BROOCH"),
+                ("Bracelet", "BRACELET"),
+                ("Bangle", "BANGLE")
                 )
     name = models.CharField(max_length=100)
     slug = models.SlugField(blank=True, null=True)

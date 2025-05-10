@@ -18,6 +18,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+REACT_BASE_URL = os.getenv("REACT_BASE_URL", "http://localhost:5173")
+
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
@@ -25,7 +28,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'dayotitoju@gmail.com')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'kvau gzkh izbo dudv')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'mailer@studandshine.com')
-PASSWORD_RESET_BASE_URL = os.getenv('PASSWORD_RESET_BASE_URL', 'http://127.0.0.1:8001/reset_password')
+PASSWORD_RESET_BASE_URL = os.getenv('PASSWORD_RESET_BASE_URL', f"http://{REACT_BASE_URL}/reset_password")
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -173,4 +176,3 @@ PAYPAL_CLIENT_ID = 'Acm1Q-vJ-o_SIp7ftjn3uxJTZUZSIF_8rpCmALSFsoYWNosx9d-3rrKZqfKD
 PAYPAL_CLIENT_SECRET = 'ELcWhIV7XYQ6KmnmFgAg1r1zH0k-8pdOQOF2Fq8yLCHRVRvz-NZJeBaWR1iB326f6W44RFHHBIEL5Vdf'
 PAYPAL_MODE = 'sandbox' #  'Live' when ready for production
 
-REACT_BASE_URL = os.getenv("REACT_BASE_URL", "http://localhost:5173")

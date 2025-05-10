@@ -8,6 +8,7 @@ from .serializers import (ProductSerializer, CartSerializer, DetailedProductSeri
                           UpdateUserSerializer, ResetPasswordRequestSerializer, ResetPasswordSerializer)
 from rest_framework import generics
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
 from rest_framework import status
 
 from django.core.mail import send_mail
@@ -24,6 +25,7 @@ import paypalrestsdk
 
 import os
 from django.conf import settings
+from django.http import JsonResponse
 
 
 # Create your views here.
@@ -38,18 +40,45 @@ paypalrestsdk.configure({
 
 
 @api_view(["GET"])
-def products(requests):
+def products(request):
+    paginator = PageNumberPagination()
+    paginator.page_size = 12  # Number of products per page
     products = Product.objects.all()
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data)
+
+    # Filtering by category
+    category = request.query_params.get('category', None)
+    if category:
+        products = products.filter(category__icontains=category)
+
+    # Filtering by name
+    name = request.query_params.get('search', None)
+    if name:
+        products = products.filter(name__icontains=name)
+
+    result_page = paginator.paginate_queryset(products, request)
+    serializer = ProductSerializer(result_page, many=True)
+
+    return paginator.get_paginated_response(serializer.data)
 
 
 @api_view(["GET"])
 def product_detail(request, slug):
     product = Product.objects.get(slug=slug)
-    serializer = DetailedProductSerializer(product)
-    return Response(serializer.data)
 
+    similar_products = Product.objects.filter(category=product.category).exclude(id=product.id)
+
+    paginator = PageNumberPagination()
+    paginator.page_size = 8
+
+    paginated_similar_products = paginator.paginate_queryset(similar_products, request)
+
+    serializer = DetailedProductSerializer(product)
+    related_serializer = ProductSerializer(paginated_similar_products, many=True)
+
+    return paginator.get_paginated_response({
+        "product": serializer.data,
+        "similar_products": related_serializer.data,
+    })
 
 @api_view(["POST"])
 def add_item(request):
@@ -470,7 +499,7 @@ class ResetPassword(generics.GenericAPIView):
 
             reset_obj.delete()
 
-            return Response({'success': 'Password updated'}, {'reset_token': token})
+            return Response({'success': 'Password updated'})
         else:
             return Response({'error': 'No user found'}, status=404)
 
@@ -487,3 +516,4 @@ def send_test_email(request,):
             (email,), fail_silently=False
         )
     return render(request, 'test_message.html')
+
