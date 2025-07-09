@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils.text import slugify
 from django.contrib.auth import settings
+from decimal import Decimal
 from django.contrib.auth.models import AbstractUser
 from django.db.models.signals import post_save
 # Create your models here.
@@ -74,4 +75,21 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"Transaction {self.ref} - {self.status}"
+
+
+class Invoice(models.Model):
+    ref = models.CharField(max_length=255, unique=True)  # Unique invoice reference
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, blank=True)  # Linked to the user
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)  # Linked to cart
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))  # Item total
+    tax = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))  # Tax amount
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))  # Delivery fee
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))  # Final amount
+    currency = models.CharField(max_length=10, default="NGN")  # Currency type
+    status = models.CharField(max_length=20, choices=[("pending", "Pending"), ("paid", "Paid"), ("cancelled", "Cancelled")], default="pending")  # Payment status
+    created_at = models.DateTimeField(auto_now_add=True)  # Timestamp for invoice creation
+    updated_at = models.DateTimeField(auto_now=True)  # Timestamp for latest update
+
+    def __str__(self):
+        return f"Invoice {self.ref} - {self.user.username}"
 

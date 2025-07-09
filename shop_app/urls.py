@@ -24,6 +24,12 @@ urlpatterns = [
     path('change_password/<int:id>/', views.ChangePasswordView.as_view(), name='change_password'),
     path('request_password_reset/', views.RequestPasswordReset.as_view(), name='request_password_reset'),
     path('reset_password/<str:token>', views.ResetPassword.as_view(), name='reset_password'),
+    path('get_invoice/<str:invoice_ref>', views.get_invoice, name='get_invoice'),
+    path('generate_invoice/', views.generate_invoice, name='generate_invoice'),
+    path('confirm_payment/', views.confirm_payment, name='confirm_payment'),
+    path('cancel_invoice/', views.cancel_invoice, name='cancel_invoice'),
+    path('completed_page/', views.completed_page, name='completed_page'),
+    path('cancelled_page/', views.cancelled_page, name='cancelled_page'),
 ]
 
 # fetching all_products: http://127.0.0.1:8001/products/

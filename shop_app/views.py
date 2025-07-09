@@ -1,7 +1,8 @@
 from django.shortcuts import render
+from django.shortcuts import redirect
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .models import Product, Cart, CartItem, Transaction
+from .models import Product, Cart, CartItem, Transaction, Invoice
 from core.models import CustomUser, Profile, PasswordReset
 from .serializers import (ProductSerializer, CartSerializer, DetailedProductSerializer, UserSerializer,
                           CartItemSerializer, SimpleCartSerializer, RegisterSerializer, ChangePasswordSerializer,
@@ -79,6 +80,7 @@ def product_detail(request, slug):
         "product": serializer.data,
         "similar_products": related_serializer.data,
     })
+
 
 @api_view(["POST"])
 def add_item(request):
@@ -331,7 +333,7 @@ def initiate_paypal_payment(request):
 
         print("pay_id", payment)
 
-        transaction, creadted = Transaction.objects.get_or_create(
+        transaction, created = Transaction.objects.get_or_create(
             ref=tx_ref,
             cart=cart,
             amount=total_amount,
@@ -380,6 +382,156 @@ def paypal_payment_callback(request):
 
     else:
         return Response({'error': "Invalid payment details."}, status=400)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def generate_invoice(request):
+    try:
+        invoice_ref = str(uuid.uuid4())
+        cart_code = request.data.get("cart_code")
+        cart = Cart.objects.get(cart_code=cart_code)
+        user = request.user
+
+        subtotal = sum([item.quantity * item.product.price for item in cart.items.all()])
+        tax = Decimal("600.00")
+        delivery_fee = Decimal("2400.00")
+        total_amount = subtotal + tax + delivery_fee
+        currency = "NGN"
+
+        invoice = Invoice.objects.create(
+            ref=invoice_ref,
+            cart=cart,
+            subtotal=subtotal,
+            tax=tax,
+            delivery_fee=delivery_fee,
+            total_amount=total_amount,
+            currency=currency,
+            user=user,
+            status="pending"
+        )
+
+        # Return the URL in a JSON response
+        invoice_url = f"{BASE_URL}/invoice_page/{invoice_ref}"
+        return Response({'success': True, 'invoice_link': invoice_url}, status=status.HTTP_200_OK)
+
+    except Cart.DoesNotExist:
+        return Response({'error': 'Cart not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_invoice(request, invoice_ref):
+    try:
+        invoice = Invoice.objects.get(ref=invoice_ref, user=request.user)
+
+        # Format invoice payload for frontend consumption
+        invoice_payload = {
+            "invoice_ref": invoice.ref,
+            "subtotal": str(invoice.subtotal),
+            "tax": str(invoice.tax),
+            "delivery_fee": str(invoice.delivery_fee),
+            "total_amount": str(invoice.total_amount),
+            "currency": invoice.currency,
+            "status": invoice.status,
+            "customer": {
+                "email": invoice.user.email,
+                "name": invoice.user.username,
+                "phonenumber": invoice.user.phone
+            },
+            "details": [
+                {
+                    "product": item.product.name,
+                    "quantity": item.quantity,
+                    "unit_price": str(item.product.price),
+                    "total_price": str(item.quantity * item.product.price)
+                } for item in invoice.cart.items.all()
+            ]
+        }
+
+        return Response(invoice_payload, status=status.HTTP_200_OK)
+
+    except Invoice.DoesNotExist:
+        return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def confirm_payment(request):
+    try:
+        user = request.user  # Ensure the authenticated user is used
+        cart_code = request.data.get("cart_code")
+        invoice_ref = request.data.get("invoice_ref")
+
+        # Validate that the invoice belongs to the logged-in user
+        invoice = Invoice.objects.get(ref=invoice_ref, user=user)
+        if invoice.status == "paid":
+            return Response({"error": "Invoice already marked as paid"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            invoice.status = "paid"
+            invoice.save()
+
+            # Validate that the cart belongs to the logged-in user
+            cart = Cart.objects.get(cart_code=cart_code, paid=False)
+            cart.paid = True
+            cart.user = user
+            cart.save()
+
+        return Response({'message': 'Payment completed!', "status": invoice.status, "ref": invoice_ref}, status=status.HTTP_200_OK)
+
+    except Invoice.DoesNotExist:
+        return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Cart.DoesNotExist:
+        return Response({'error': 'Cart not found or already paid'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def cancel_invoice(request):
+    try:
+        user = request.user  # Ensure the authenticated user is used
+        cart_code = request.data.get("cart_code")
+        invoice_ref = request.data.get("invoice_ref")
+
+        invoice = Invoice.objects.get(ref=invoice_ref, user=user)
+
+        invoice.status = "cancelled"
+        invoice.save()
+        print("Checkpoint")
+        cart = Cart.objects.get(cart_code=cart_code)
+        cart.paid = False
+        cart.save()
+        return Response({'message': 'Payment cancelled.', 'subMessage': 'You have cancelled the payent for this invoice. If you wish to continue with this payment, use the navigation button and go back to the generated invoice, make the payment and then click on "I have made the payment".', "status": invoice.status, "ref": invoice_ref})
+
+    except Invoice.DoesNotExist:
+        return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+def completed_page(request):
+    status = request.query_params.get('status')
+    ref = request.query_params.get('ref')
+
+    if ref and status:
+
+        return Response({'message': 'Payment completed!', 'subMessage': 'You have completed the payment process for the items you purchased 😍'})
+
+    else:
+        return Response({'error': "Invalid payment details."}, status=400)
+
+
+@api_view(['POST'])
+def cancelled_page(request):
+    status = request.query_params.get('status')
+    ref = request.query_params.get('ref')
+
+    if ref and status:
+
+        return Response({'message': 'Payment cancelled.', 'subMessage': 'You have cancelled the payent for this invoice. If you wish to continue with this payment, use the navigation button and go back to the generated invoice, make the payment and then click on "I have made the payment".', "status": status, "ref": ref})
+
+    else:
+        return Response({'error': "Invalid action, try again."}, status=400)
 
 
 class RegisterView(generics.CreateAPIView):
